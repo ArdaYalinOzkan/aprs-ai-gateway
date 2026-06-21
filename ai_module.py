@@ -174,16 +174,8 @@ class AIGateway:
             with open(CONFIG_PATH, "w") as f:
                 toml.dump(cfg, f)
             self._emit(f"[AI] CMD from {from_call}: .{cmd} -> {reply}")
-            delay = int(ai.get("send_delay", 0))
-            if delay > 0:
-                time.sleep(delay)
-            self._send(current_callsign, from_call, reply)
         else:
             self._emit(f"[AI] Unknown CMD: .{cmd}")
-            delay = int(ai.get("send_delay", 0))
-            if delay > 0:
-                time.sleep(delay)
-            self._send(current_callsign, from_call, "Unknown cmd. Send .HELP for list")
 
     def _watch_log(self, callsign):
         last_ts = time.strftime("%Y-%m-%d %H:%M:%S")
