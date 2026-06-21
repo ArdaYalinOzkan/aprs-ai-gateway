@@ -110,4 +110,8 @@ The AI module does NOT maintain its own APRS-IS connection for receiving. Instea
 
 ## License
 
-MIT License
+Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+
+You are free to share and adapt this work, provided you give appropriate credit to the original author and do not use it for commercial purposes.
+
+See [LICENSE](LICENSE) for details.
