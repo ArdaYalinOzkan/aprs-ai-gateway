@@ -135,57 +135,55 @@ class AIGateway:
             new_call = cmd[5:].strip().upper()[:7]
             if new_call:
                 ai["callsign"] = new_call
-                reply = f"OK. Callsign changed to {new_call}"
+                reply = f"Callsign: {new_call}"
 
         elif cmd.upper().startswith("WL "):
             names = cmd[3:].strip().upper()
             ai["whitelist"] = [w.strip() for w in names.split(",") if w.strip()]
             ai["whitelist_enabled"] = True
-            reply = f"OK. Whitelist set: {','.join(ai['whitelist'])}"
+            reply = f"Whitelist: {','.join(ai['whitelist'])}"
 
         elif cmd.upper() == "WLON":
             ai["whitelist_enabled"] = True
-            reply = "OK. Whitelist is now enabled"
+            reply = "Whitelist ON"
 
         elif cmd.upper() == "WLOFF":
             ai["whitelist_enabled"] = False
-            reply = "OK. Whitelist is now disabled"
+            reply = "Whitelist OFF"
 
         elif cmd.upper() == "STATUS":
             wl = "ON" if ai.get("whitelist_enabled") else "OFF"
-            sms = 1 + int(ai.get("extra_sms", 0))
-            dl = ai.get("send_delay", 0)
-            reply = f"Call:{ai.get('callsign','')} SMS:{sms} parts WL:{wl} Delay:{dl}s"
+            reply = f"Call:{ai.get('callsign','')} SMS:{1+int(ai.get('extra_sms',0))} WL:{wl} Delay:{ai.get('send_delay',0)}s"
 
         elif cmd.upper().startswith("DELAY "):
             val = cmd[6:].strip()
             if val.isdigit():
                 ai["send_delay"] = int(val)
-                reply = f"OK. Send delay set to {val} seconds"
+                reply = f"Send delay: {val}s"
 
         elif cmd.isdigit():
             n = int(cmd)
             if 1 <= n <= 5:
                 ai["extra_sms"] = n - 1
-                reply = f"OK. Responses will be {n} message(s) from now"
+                reply = f"Total SMS: {n}"
 
         elif cmd.upper() == "HELP":
-            reply = "!CALL x !3 !DELAY 5 !WLON !WLOFF !WL a,b !STATUS"
+            reply = ".CALL x .3 .DELAY 5 .WLON .WLOFF .WL a,b .STATUS"
 
         if reply:
             with open(CONFIG_PATH, "w") as f:
                 toml.dump(cfg, f)
-            self._emit(f"[AI] CMD from {from_call}: !{cmd} -> {reply}")
+            self._emit(f"[AI] CMD from {from_call}: .{cmd} -> {reply}")
             delay = int(ai.get("send_delay", 0))
             if delay > 0:
                 time.sleep(delay)
             self._send(current_callsign, from_call, reply)
         else:
-            self._emit(f"[AI] Unknown CMD: !{cmd}")
+            self._emit(f"[AI] Unknown CMD: .{cmd}")
             delay = int(ai.get("send_delay", 0))
             if delay > 0:
                 time.sleep(delay)
-            self._send(current_callsign, from_call, "Unknown cmd. Send !HELP for list")
+            self._send(current_callsign, from_call, "Unknown cmd. Send .HELP for list")
 
     def _watch_log(self, callsign):
         last_ts = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -242,7 +240,7 @@ class AIGateway:
                             continue
                         self._processed.add(dedup_key)
 
-                    if message.startswith("!"):
+                    if message.startswith("."):
                         self._handle_command(message[1:], from_call, callsign)
                         continue
 
