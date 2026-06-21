@@ -58,7 +58,13 @@ def get_config():
 def save_config():
     try:
         write_ai_cfg(request.json)
-        time.sleep(0.5)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/toggle", methods=["POST"])
+def toggle():
+    try:
         start_ai_module()
         return jsonify({"ok": True})
     except Exception as e:
@@ -414,7 +420,11 @@ const gc=id=>$(id)?.checked||false;
 const sv=(id,v)=>{const e=$(id);if(e)e.value=v??''};
 const sc=(id,v)=>{const e=$(id);if(e)e.checked=!!v};
 
-function togEn(on){const w=$('cfgW');w.style.opacity=on?'1':'.35';w.style.pointerEvents=on?'':'none'}
+function togEn(on){
+  const w=$('cfgW');w.style.opacity=on?'1':'.35';w.style.pointerEvents=on?'':'none';
+  autoSave();
+  setTimeout(()=>fetch('/api/toggle',{method:'POST'}),1200);
+}
 function onProv(){$('urlR').style.display=gv('f_prov')==='custom'?'':'none'}
 function updSl(){const v=parseInt(gv('f_ext'));$('extL').textContent=v===0?'Off':v+' extra ('+(v+1)+' parts)'}
 function updSt(on){}

@@ -35,6 +35,9 @@ def to_ascii(text):
 MSG_RE = re.compile(r"(\S+?)>.*?::(\S+)\s*:(.+)")
 
 
+CONFIG_PATH = "/etc/aprsagent.toml"
+
+
 class AIGateway:
     def __init__(self, on_log):
         self._log_fn = on_log
@@ -42,6 +45,14 @@ class AIGateway:
         self._thread = None
         self._processed = set()
         self._lock = threading.Lock()
+
+    def _live_config(self):
+        try:
+            import toml
+            with open(CONFIG_PATH) as f:
+                return toml.load(f).get("extensions", {}).get("ai_gateway", {})
+        except Exception:
+            return self._config
         self._config = {}
 
     def start(self, config):
@@ -162,8 +173,9 @@ class AIGateway:
                 if not question:
                     continue
 
-                if self._config.get("whitelist_enabled"):
-                    wl = [w.upper().strip() for w in self._config.get("whitelist", []) if w.strip()]
+                live = self._live_config()
+                if live.get("whitelist_enabled"):
+                    wl = [w.upper().strip() for w in live.get("whitelist", []) if w.strip()]
                     from_base = from_call.upper().split("-")[0]
                     allowed = any(
                         from_base.startswith(w[:-1]) if w.endswith("*") else from_base == w
@@ -175,7 +187,7 @@ class AIGateway:
 
                 self._emit(f"[AI-RX] {from_call} sordu: {question}")
 
-                extra_sms = int(self._config.get("extra_sms", 0))
+                extra_sms = int(live.get("extra_sms", 0))
                 max_parts = 1 + extra_sms
 
                 def process(fc=from_call, q=question, mp=max_parts):
