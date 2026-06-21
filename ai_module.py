@@ -113,6 +113,72 @@ class AIGateway:
                     self._emit(f"[AI-HATA] Log izleme hatasi: {e}")
                     time.sleep(5)
 
+    def _handle_command(self, cmd, from_call, current_callsign):
+        cmd = cmd.strip()
+        if not cmd:
+            return
+
+        live = self._live_config()
+        import toml
+
+        try:
+            with open(CONFIG_PATH) as f:
+                cfg = toml.load(f)
+        except Exception:
+            self._emit("[AI-HATA] Config okunamadi")
+            return
+
+        ai = cfg.setdefault("extensions", {}).setdefault("ai_gateway", {})
+        reply = None
+
+        if cmd.upper().startswith("CALL "):
+            new_call = cmd[5:].strip().upper()[:7]
+            if new_call:
+                ai["callsign"] = new_call
+                reply = f"Callsign: {new_call}"
+
+        elif cmd.upper().startswith("WL "):
+            names = cmd[3:].strip().upper()
+            ai["whitelist"] = [w.strip() for w in names.split(",") if w.strip()]
+            ai["whitelist_enabled"] = True
+            reply = f"Whitelist: {','.join(ai['whitelist'])}"
+
+        elif cmd.upper() == "WLON":
+            ai["whitelist_enabled"] = True
+            reply = "Whitelist ON"
+
+        elif cmd.upper() == "WLOFF":
+            ai["whitelist_enabled"] = False
+            reply = "Whitelist OFF"
+
+        elif cmd.upper() == "STATUS":
+            wl = "ON" if ai.get("whitelist_enabled") else "OFF"
+            reply = f"Call:{ai.get('callsign','')} SMS:{1+int(ai.get('extra_sms',0))} WL:{wl} Delay:{ai.get('send_delay',0)}s"
+
+        elif cmd.upper().startswith("DELAY "):
+            val = cmd[6:].strip()
+            if val.isdigit():
+                ai["send_delay"] = int(val)
+                reply = f"Send delay: {val}s"
+
+        elif cmd.isdigit():
+            n = int(cmd)
+            if 1 <= n <= 5:
+                ai["extra_sms"] = n - 1
+                reply = f"Total SMS: {n}"
+
+        elif cmd.upper() == "HELP":
+            reply = "!CALL x !3 !DELAY 5 !WLON !WLOFF !WL a,b !STATUS"
+
+        if reply:
+            with open(CONFIG_PATH, "w") as f:
+                toml.dump(cfg, f)
+            self._emit(f"[AI] CMD from {from_call}: !{cmd} -> {reply}")
+            self._send(current_callsign, from_call, reply)
+        else:
+            self._emit(f"[AI] Unknown CMD: !{cmd}")
+            self._send(current_callsign, from_call, "Unknown cmd. !HELP for list")
+
     def _watch_log(self, callsign):
         last_ts = time.strftime("%Y-%m-%d %H:%M:%S")
         self._emit("[AI] Polling mode: scanning every 2s...")
@@ -168,6 +234,10 @@ class AIGateway:
                             continue
                         self._processed.add(dedup_key)
 
+                    if message.startswith("!"):
+                        self._handle_command(message[1:], from_call, callsign)
+                        continue
+
                     prefix = self._config.get("trigger_prefix", "").upper()
                     if prefix:
                         if not message.upper().startswith(prefix):
@@ -193,11 +263,16 @@ class AIGateway:
 
                     self._emit(f"[AI-RX] {from_call} sordu: {question}")
 
+                    live = self._live_config()
                     extra_sms = int(live.get("extra_sms", 0))
                     max_parts = 1 + extra_sms
 
-                    def process(fc=from_call, q=question, mp=max_parts):
+                    send_delay = int(live.get("send_delay", 0))
+
+                    def process(fc=from_call, q=question, mp=max_parts, sd=send_delay):
                         try:
+                            if sd > 0:
+                                time.sleep(sd)
                             answer = self._ask(q)
                             self._emit(f"[AI] Cevap: {answer}")
                             parts = self._split_message(answer, mp)

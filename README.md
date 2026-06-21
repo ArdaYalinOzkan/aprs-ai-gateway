@@ -88,6 +88,24 @@ All settings can also be configured through the web dashboard at `http://your-se
 | `trigger_prefix` | Optional prefix to filter messages (empty = respond to all) | `""` |
 | `whitelist_enabled` | Enable callsign whitelist | `false` |
 | `whitelist` | List of allowed callsigns (supports `*` wildcard) | `[]` |
+| `send_delay` | Seconds to wait before sending AI response (0-30) | `0` |
+
+### Remote Commands (via APRS)
+
+You can configure the gateway remotely by sending messages starting with `!`:
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `!CALL <name>` | Change AI callsign | `!CALL DMW` |
+| `!<number>` | Set total SMS parts (1-5) | `!3` → 3 parts |
+| `!DELAY <sec>` | Set response delay in seconds | `!DELAY 5` |
+| `!WLON` | Enable whitelist | `!WLON` |
+| `!WLOFF` | Disable whitelist | `!WLOFF` |
+| `!WL <calls>` | Set whitelist callsigns | `!WL TA3HRJ,TA3EKM` |
+| `!STATUS` | Show current settings | `!STATUS` |
+| `!HELP` | List available commands | `!HELP` |
+
+Commands are sent as regular APRS messages to the AI callsign. The response confirms the change.
 
 ### AI Providers
 

@@ -371,6 +371,12 @@ body{
             <span class="val" id="extL">Off</span>
           </div>
         </div>
+        <div class="slider-row" style="border-top:1px solid var(--borders)"><label>Send Delay</label>
+          <div class="slider-inner">
+            <input id="f_delay" type="range" min="0" max="30" value="0" oninput="updDl()">
+            <span class="val" id="delL">0s</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -427,6 +433,7 @@ function togEn(on){
 }
 function onProv(){$('urlR').style.display=gv('f_prov')==='custom'?'':'none'}
 function updSl(){const v=parseInt(gv('f_ext'));$('extL').textContent=v===0?'Off':v+' extra ('+(v+1)+' parts)'}
+function updDl(){$('delL').textContent=gv('f_delay')+'s'}
 function updSt(on){}
 
 async function load(){
@@ -435,9 +442,9 @@ async function load(){
     sc('f_en',c.enabled);togEn(c.enabled);
     sv('f_call',c.callsign||'');sv('f_prov',c.provider||'puter');
     sv('f_key',c.api_key||'');sv('f_url',c.base_url||'');
-    sv('f_ext',c.extra_sms??0);sc('f_wl_en',c.whitelist_enabled);
+    sv('f_ext',c.extra_sms??0);sv('f_delay',c.send_delay??0);sc('f_wl_en',c.whitelist_enabled);
     sv('f_wl',(c.whitelist||[]).join(', '));
-    onProv();updSl();updSt(c.enabled);
+    onProv();updSl();updDl();updSt(c.enabled);
   }catch(e){console.error(e)}
 }
 load();
@@ -451,7 +458,7 @@ function autoSave(){
     try{
       const cfg={enabled:gc('f_en'),callsign:gv('f_call').trim().toUpperCase(),
         provider:gv('f_prov')||'puter',api_key:gv('f_key'),base_url:gv('f_url').trim(),
-        extra_sms:parseInt(gv('f_ext'))||0,trigger_prefix:'',
+        extra_sms:parseInt(gv('f_ext'))||0,send_delay:parseInt(gv('f_delay'))||0,trigger_prefix:'',
         whitelist_enabled:gc('f_wl_en'),whitelist:gv('f_wl').split(',').map(s=>s.trim()).filter(Boolean)};
       const r=await(await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})).json();
       updSt(cfg.enabled);
@@ -460,7 +467,7 @@ function autoSave(){
     }catch{$('saveStatus').textContent='Connection error';setTimeout(()=>{$('saveStatus').textContent=''},3000)}
   },800);
 }
-document.querySelectorAll('#f_en,#f_call,#f_prov,#f_key,#f_url,#f_ext,#f_wl_en,#f_wl').forEach(el=>{
+document.querySelectorAll('#f_en,#f_call,#f_prov,#f_key,#f_url,#f_ext,#f_delay,#f_wl_en,#f_wl').forEach(el=>{
   el.addEventListener('input',autoSave);
   el.addEventListener('change',autoSave);
 });
