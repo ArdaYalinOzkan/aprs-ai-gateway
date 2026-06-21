@@ -220,16 +220,6 @@ body{
 .adw-switch input:checked+span{background:var(--accent_bg_color)}
 .adw-switch input:checked+span::after{transform:translateX(20px)}
 
-/* ═══ SUGGESTED ACTION ═══ */
-.suggested-action{
-  display:block;width:100%;height:38px;margin-top:8px;
-  background:var(--accent_bg_color);color:var(--accent_fg_color);
-  border:none;border-radius:8px;font-size:15px;font-weight:bold;
-  cursor:pointer;font-family:inherit;transition:.1s;
-}
-.suggested-action:hover{filter:brightness(1.1)}
-.suggested-action:active{filter:brightness(.9)}
-.suggested-action:disabled{opacity:.3;cursor:not-allowed}
 
 /* ═══ LOG PANEL ═══ */
 .log-panel{
@@ -394,7 +384,7 @@ body{
 
     </div>
 
-    <button class="suggested-action" id="sBtn" onclick="doSave()">Save & Start</button>
+    <div id="saveStatus" style="text-align:center;font-size:12px;color:var(--dim_label_color);margin-top:10px;height:18px"></div>
 
   </div></div>
 
@@ -442,19 +432,28 @@ async function load(){
 }
 load();
 
-async function doSave(){
-  const b=$('sBtn');b.disabled=true;b.textContent='Saving...';
-  try{
-    const cfg={enabled:gc('f_en'),callsign:gv('f_call').trim().toUpperCase(),
-      provider:gv('f_prov')||'puter',api_key:gv('f_key'),base_url:gv('f_url').trim(),
-      extra_sms:parseInt(gv('f_ext'))||0,trigger_prefix:'',
-      whitelist_enabled:gc('f_wl_en'),whitelist:gv('f_wl').split(',').map(s=>s.trim()).filter(Boolean)};
-    const r=await(await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})).json();
-    updSt(cfg.enabled);b.textContent=r.ok?'Saved!':'Error';
-    setTimeout(()=>{b.textContent='Save & Start'},2000);
-  }catch{b.textContent='Connection error';setTimeout(()=>{b.textContent='Save & Start'},3000)}
-  finally{b.disabled=false}
+let _saveTimer=null;
+function autoSave(){
+  clearTimeout(_saveTimer);
+  $('saveStatus').textContent='';
+  _saveTimer=setTimeout(async()=>{
+    $('saveStatus').textContent='Saving...';
+    try{
+      const cfg={enabled:gc('f_en'),callsign:gv('f_call').trim().toUpperCase(),
+        provider:gv('f_prov')||'puter',api_key:gv('f_key'),base_url:gv('f_url').trim(),
+        extra_sms:parseInt(gv('f_ext'))||0,trigger_prefix:'',
+        whitelist_enabled:gc('f_wl_en'),whitelist:gv('f_wl').split(',').map(s=>s.trim()).filter(Boolean)};
+      const r=await(await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})).json();
+      updSt(cfg.enabled);
+      $('saveStatus').textContent=r.ok?'Saved':'Error';
+      setTimeout(()=>{$('saveStatus').textContent=''},2000);
+    }catch{$('saveStatus').textContent='Connection error';setTimeout(()=>{$('saveStatus').textContent=''},3000)}
+  },800);
 }
+document.querySelectorAll('#f_en,#f_call,#f_prov,#f_key,#f_url,#f_ext,#f_wl_en,#f_wl').forEach(el=>{
+  el.addEventListener('input',autoSave);
+  el.addEventListener('change',autoSave);
+});
 
 function cls(l){
   if(!l)return'raw';

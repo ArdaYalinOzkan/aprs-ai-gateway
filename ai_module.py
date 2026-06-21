@@ -106,11 +106,12 @@ class AIGateway:
         proc = subprocess.Popen(
             ["journalctl", "-u", "aprs-agent", "-f", "-n", "0",
              "--no-pager", "-o", "cat"],
-            stdout=subprocess.PIPE, text=True, bufsize=1,
+            stdout=subprocess.PIPE, text=True, bufsize=0,
         )
         try:
-            for line in proc.stdout:
-                if not self._running:
+            while self._running:
+                line = proc.stdout.readline()
+                if not line:
                     break
                 clean = ANSI_RE.sub("", line).strip()
 
