@@ -114,102 +114,113 @@ class AIGateway:
                     time.sleep(5)
 
     def _watch_log(self, callsign):
-        proc = subprocess.Popen(
-            ["journalctl", "-u", "aprs-agent", "-f", "-n", "0",
-             "--no-pager", "-o", "cat"],
-            stdout=subprocess.PIPE, text=True, bufsize=0,
-        )
-        try:
-            while self._running:
-                line = proc.stdout.readline()
-                if not line:
-                    break
-                clean = ANSI_RE.sub("", line).strip()
+        last_ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        self._emit("[AI] Polling mode: scanning every 2s...")
 
-                if callsign.upper() not in clean.upper():
-                    continue
+        while self._running:
+            try:
+                out = subprocess.check_output(
+                    ["journalctl", "-u", "aprs-agent",
+                     "--since", last_ts,
+                     "--no-pager", "-o", "cat"],
+                    text=True, timeout=10,
+                )
+                last_ts = time.strftime("%Y-%m-%d %H:%M:%S")
 
-                m = MSG_RE.search(clean)
-                if not m:
-                    continue
-
-                from_call = m.group(1).strip()
-                addressee = m.group(2).strip().upper()
-                raw_msg = m.group(3).strip()
-
-                if addressee != callsign.upper():
-                    continue
-
-                if from_call.upper().startswith(callsign.upper()):
-                    continue
-
-                if "{" in raw_msg:
-                    message = raw_msg[:raw_msg.rfind("{")].strip()
-                    msg_id = raw_msg[raw_msg.rfind("{") + 1:raw_msg.rfind("}")]
-                else:
-                    message = raw_msg
-                    msg_id = ""
-
-                if not message:
-                    continue
-
-                if message.lower().startswith("ack") or message.lower().startswith("rej"):
-                    continue
-
-                dedup_key = f"{from_call}:{msg_id or message}"
-                with self._lock:
-                    if dedup_key in self._processed:
+                for line in out.strip().split("\n"):
+                    if not line:
                         continue
-                    self._processed.add(dedup_key)
+                    clean = ANSI_RE.sub("", line).strip()
 
-                prefix = self._config.get("trigger_prefix", "").upper()
-                if prefix:
-                    if not message.upper().startswith(prefix):
-                        continue
-                    question = message[len(prefix):].strip(" :")
-                else:
-                    question = message
-
-                if not question:
-                    continue
-
-                live = self._live_config()
-                if live.get("whitelist_enabled"):
-                    wl = [w.upper().strip() for w in live.get("whitelist", []) if w.strip()]
-                    from_base = from_call.upper().split("-")[0]
-                    allowed = any(
-                        from_base.startswith(w[:-1]) if w.endswith("*") else from_base == w
-                        for w in wl
-                    )
-                    if not allowed:
-                        self._emit(f"[AI-ENGEL] {from_call} whitelist'te degil, engellendi")
+                    if callsign.upper() not in clean.upper():
                         continue
 
-                self._emit(f"[AI-RX] {from_call} sordu: {question}")
+                    m = MSG_RE.search(clean)
+                    if not m:
+                        continue
 
-                extra_sms = int(live.get("extra_sms", 0))
-                max_parts = 1 + extra_sms
+                    from_call = m.group(1).strip()
+                    addressee = m.group(2).strip().upper()
+                    raw_msg = m.group(3).strip()
 
-                def process(fc=from_call, q=question, mp=max_parts):
-                    try:
-                        answer = self._ask(q)
-                        self._emit(f"[AI] Cevap: {answer}")
-                        parts = self._split_message(answer, mp)
-                        for i, part in enumerate(parts):
-                            ok = self._send(callsign, fc, part)
-                            if ok:
-                                self._emit(f"[AI-TX] -> {fc}: {part}")
-                            else:
-                                self._emit(f"[AI-HATA] {fc}'a gonderilemedi")
-                                break
-                            if i < len(parts) - 1:
-                                time.sleep(5)
-                    except Exception as e:
-                        self._emit(f"[AI-HATA] {e}")
+                    if addressee != callsign.upper():
+                        continue
 
-                threading.Thread(target=process, daemon=True).start()
-        finally:
-            proc.terminate()
+                    if from_call.upper().startswith(callsign.upper()):
+                        continue
+
+                    if "{" in raw_msg:
+                        message = raw_msg[:raw_msg.rfind("{")].strip()
+                        msg_id = raw_msg[raw_msg.rfind("{") + 1:raw_msg.rfind("}")]
+                    else:
+                        message = raw_msg
+                        msg_id = ""
+
+                    if not message:
+                        continue
+
+                    if message.lower().startswith("ack") or message.lower().startswith("rej"):
+                        continue
+
+                    dedup_key = f"{from_call}:{msg_id or message}"
+                    with self._lock:
+                        if dedup_key in self._processed:
+                            continue
+                        self._processed.add(dedup_key)
+
+                    prefix = self._config.get("trigger_prefix", "").upper()
+                    if prefix:
+                        if not message.upper().startswith(prefix):
+                            continue
+                        question = message[len(prefix):].strip(" :")
+                    else:
+                        question = message
+
+                    if not question:
+                        continue
+
+                    live = self._live_config()
+                    if live.get("whitelist_enabled"):
+                        wl = [w.upper().strip() for w in live.get("whitelist", []) if w.strip()]
+                        from_base = from_call.upper().split("-")[0]
+                        allowed = any(
+                            from_base.startswith(w[:-1]) if w.endswith("*") else from_base == w
+                            for w in wl
+                        )
+                        if not allowed:
+                            self._emit(f"[AI-ENGEL] {from_call} whitelist'te degil, engellendi")
+                            continue
+
+                    self._emit(f"[AI-RX] {from_call} sordu: {question}")
+
+                    extra_sms = int(live.get("extra_sms", 0))
+                    max_parts = 1 + extra_sms
+
+                    def process(fc=from_call, q=question, mp=max_parts):
+                        try:
+                            answer = self._ask(q)
+                            self._emit(f"[AI] Cevap: {answer}")
+                            parts = self._split_message(answer, mp)
+                            for i, part in enumerate(parts):
+                                ok = self._send(callsign, fc, part)
+                                if ok:
+                                    self._emit(f"[AI-TX] -> {fc}: {part}")
+                                else:
+                                    self._emit(f"[AI-HATA] {fc}'a gonderilemedi")
+                                    break
+                                if i < len(parts) - 1:
+                                    time.sleep(5)
+                        except Exception as e:
+                            self._emit(f"[AI-HATA] {e}")
+
+                    threading.Thread(target=process, daemon=True).start()
+
+            except subprocess.TimeoutExpired:
+                pass
+            except Exception as e:
+                self._emit(f"[AI-HATA] Poll hatasi: {e}")
+
+            time.sleep(2)
 
     def _split_message(self, text, max_parts):
         if len(text) <= 64:
