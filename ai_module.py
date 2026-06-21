@@ -141,6 +141,9 @@ class AIGateway:
                 if not message:
                     continue
 
+                if message.lower().startswith("ack") or message.lower().startswith("rej"):
+                    continue
+
                 dedup_key = f"{from_call}:{msg_id or message}"
                 with self._lock:
                     if dedup_key in self._processed:
